@@ -4,7 +4,12 @@
 }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
-body { margin: 0; font-family: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; overflow-x: hidden; }
+body {
+  margin: 0; font-family: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+  background: var(--bg); color: var(--text); font-size: 14px; overflow-x: hidden;
+  /* keep content clear of the notch / Dynamic Island in landscape */
+  padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right);
+}
 h1 { font-size: 17px; margin: 0; } h3 { margin: 0; font-size: 15px; } h4 { margin: 16px 0 8px; font-size: 14px; }
 small, .muted { color: var(--muted); }
 .hidden { display: none !important; }
@@ -18,8 +23,18 @@ small, .muted { color: var(--muted); }
 
 input, select, textarea { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; font: inherit; max-width: 100%; }
 input[type=checkbox] { width: 16px; height: 16px; flex: none; }
-input[type=date] { min-height: 36px; color-scheme: dark; }
 textarea { width: 100%; font-family: Consolas, monospace; font-size: 12px; }
+
+/* Date inputs: remove iOS native sizing so they behave like text inputs */
+input[type=date] {
+  -webkit-appearance: none; appearance: none;
+  display: block; width: 100%; min-width: 0; max-width: 100%;
+  height: 38px; line-height: normal; text-align: left; color-scheme: dark;
+}
+input[type=date]::-webkit-date-and-time-value { text-align: left; min-height: 1.3em; }
+input[type=date]::-webkit-datetime-edit { padding: 0; }
+input[type=date]::-webkit-calendar-picker-indicator { opacity: .7; }
+
 .btn { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 7px 12px; cursor: pointer; font: inherit; }
 .btn:hover { border-color: var(--accent); }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
@@ -93,12 +108,12 @@ main { padding: 0 18px 40px; max-width: 1500px; margin: 0 auto; }
 .chart-box { position: relative; height: 380px; }
 .chart-box.small { height: 220px; }
 
-/* Forms */
-.form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px 14px; }
+/* Forms: fields in the same row line up along the bottom; all controls share one height */
+.form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px 14px; align-items: end; }
 .form-grid > * { min-width: 0; }
-.form-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
-.form-grid label input:not([type=checkbox]), .form-grid label select, .form-grid label .btn { width: 100%; min-width: 0; }
-.form-grid label.check { flex-direction: row; align-items: center; gap: 8px; }
+.form-grid label { display: flex; flex-direction: column; justify-content: flex-end; gap: 4px; font-size: 12px; color: var(--muted); }
+.form-grid label input:not([type=checkbox]), .form-grid label select, .form-grid label .btn { width: 100%; min-width: 0; height: 38px; }
+.form-grid label.check { flex-direction: row; align-items: center; justify-content: flex-start; gap: 8px; min-height: 38px; }
 .adv { margin-top: 14px; } .adv summary { cursor: pointer; color: #93c5fd; margin-bottom: 10px; }
 .fv-out { margin: 12px 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
 .fv-out div { background: var(--panel2); border-radius: 6px; padding: 8px; font-size: 12px; color: var(--muted); min-width: 0; overflow-wrap: anywhere; }
@@ -110,6 +125,7 @@ table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th, td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; }
 th { color: var(--muted); font-weight: 500; font-size: 12px; }
 td input, td select { width: 100%; padding: 4px 6px; }
+td input[type=date] { height: 32px; }
 td.num, th.num { text-align: right; }
 .table-wrap { max-height: 520px; overflow: auto; -webkit-overflow-scrolling: touch; }
 .scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; }
@@ -124,11 +140,10 @@ tr.best td { background: #10291c; }
 .guide ul { padding-left: 20px; }
 .guide p, .guide li { line-height: 1.6; color: #cbd5e1; }
 
-/* ================= Small screens (phones) ================= */
-@media (max-width: 760px) {
+/* ===== Phones: portrait (narrow) AND landscape (short touch screens) ===== */
+@media (max-width: 760px), (max-height: 520px) and (pointer: coarse) {
   body { font-size: 13px; }
 
-  /* Header */
   .topbar { position: static; padding: 8px 10px; gap: 8px; }
   .brand { flex: 1; min-width: 0; }
   .brand > div { min-width: 0; }
@@ -148,7 +163,6 @@ tr.best td { background: #10291c; }
   .status { padding: 4px 10px; font-size: 12px; }
   main { padding: 0 8px calc(24px + env(safe-area-inset-bottom)); }
 
-  /* Tabs: one sticky line, short labels */
   .tabs { position: sticky; top: 0; z-index: 15; background: var(--bg); margin: 0 -8px 10px; padding: 0 8px; }
   .tabs button { padding: 10px 11px; font-size: 13px; }
   .tab-full { display: none; }
@@ -160,7 +174,6 @@ tr.best td { background: #10291c; }
   h4 { font-size: 13px; }
   h4 small { display: block; margin-top: 2px; font-weight: 400; }
 
-  /* Dashboard */
   .grid4 { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .kpi .big { font-size: 17px; }
   .kpi label { font-size: 10px; }
@@ -175,13 +188,12 @@ tr.best td { background: #10291c; }
   .chart-box.small { height: 170px; }
   .tip { white-space: normal; max-width: 220px; }
 
-  /* Profile forms: one column, full-width inputs */
-  .form-grid { grid-template-columns: 1fr; gap: 10px; }
-  .form-grid label { font-size: 12px; }
+  /* Profile forms: 1 column on a portrait phone, 2+ columns in landscape */
+  .form-grid { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px 12px; }
   .fv-out { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .fv-out b { font-size: 14px; }
 
-  /* Every table becomes a stack of cards (labels added by mobile.js) */
+  /* Tables become stacked cards (labels added by mobile.js) */
   .table-wrap { max-height: none; overflow: visible; }
   .scroll-x { overflow: visible; }
   table.stack, table.stack tbody, table.stack tr, table.stack td { display: block; width: 100%; }
@@ -192,15 +204,16 @@ tr.best td { background: #10291c; }
   table.stack td[data-label=""] { justify-content: flex-start; text-align: left; font-weight: 600; }
   table.stack td[data-label=""]::before { display: none; }
   table.stack td:last-child[data-label=""] { justify-content: flex-end; }
-  table.stack td input:not([type=checkbox]), table.stack td select { flex: 1 1 auto; width: auto; min-width: 0; text-align: left; }
+  table.stack td input:not([type=checkbox]), table.stack td select { flex: 1 1 0; width: auto; min-width: 0; text-align: left; height: 38px; }
+  table.stack td input[type=date] { flex: 1 1 0; width: auto; }
   table.stack tr.best { border-color: #22c55e; }
   table.stack tr.best td { background: none; }
 
-  /* Settings sheet slides up from the bottom */
   .modal { align-items: flex-end; }
   .modal-body { width: 100%; max-height: 88vh; border-radius: 14px 14px 0 0; padding-bottom: calc(18px + env(safe-area-inset-bottom)); }
 }
 
+/* Very narrow portrait only */
 @media (max-width: 400px) {
   .grid4 { grid-template-columns: 1fr; }
   .fv-out { grid-template-columns: 1fr; }
