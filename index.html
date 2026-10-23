@@ -117,6 +117,17 @@
         <div class="card-head"><h3>Fair value engine (System 5 input)</h3><button id="autoEarn" class="btn" title="Requires a Twelve Data plan that includes /earnings">Try auto-build from reported EPS</button></div>
         <div class="form-grid" id="fvForm"></div>
         <div id="fvOut" class="fv-out"></div>
+        <details class="adv" id="epsImport">
+          <summary>Import EPS table (paste quarterly EPS history)</summary>
+          <p class="muted">One quarter per line: <b>date, EPS</b> (an optional third value is the analyst estimate). Use the date the results were <b>released</b>. Dates can look like 2025-10-30, 10/30/2025, Oct 30 2025 or 30 Oct 2025. Negative EPS can be -0.45 or (0.45). You need at least 4 quarters, and 20 or more gives a better cycle-EPS estimate. The fair value uses the P/E multiple, confidence, haircut and weight set above. Free cash flow is not used.</p>
+          <textarea id="epsText" rows="8" placeholder="2024-10-24, 1.05&#10;2025-01-23, 1.20&#10;2025-04-24, 1.18&#10;2025-07-24, 1.31&#10;2025-10-23, 1.40"></textarea>
+          <div class="form-grid eps-grid">
+            <label>Add days to each date (about 35 if your dates are quarter-ends)<input id="epsLag" type="number" min="0" step="1" value="0" /></label>
+            <label class="check"><input id="epsS3" type="checkbox" />Also create System 3 events from the estimate column</label>
+            <label>&nbsp;<button id="epsBuild" class="btn primary" type="button">Build fair value schedule</button></label>
+          </div>
+          <div id="epsMsg" class="eps-msg"></div>
+        </details>
         <h4>Fair value schedule <small class="muted">(point-in-time: an episode freezes the latest FV on or before its open date)</small></h4>
         <div id="fvTable"></div>
       </div>
@@ -134,8 +145,17 @@
     <!-- MY ACTIONS -->
     <section id="tab-mine" class="tab hidden">
       <div class="card">
-        <div class="card-head"><h3>My actual trades</h3><small class="muted">Starts with the same S0 shares on the start date. Price blank or 0 = that day's close.</small></div>
+        <div class="card-head"><h3>My actual trades</h3><small class="muted">Starts with the same S0 shares on the start date.</small></div>
         <div id="userTable"></div>
+        <div class="hint">
+          <b>How to enter each type</b>
+          <ul>
+            <li><b>Buy / Sell:</b> shares and price (blank price = that day's close). Cash is paid or received.</li>
+            <li><b>RSU / shares received:</b> the <i>net</i> shares credited after tax withholding. The price is a reference only (the vesting value used for tax). No cash is deducted.</li>
+            <li><b>Cash dividend:</b> the net cash amount actually received. Shares don't change. Put gross and tax withheld in the Note.</li>
+            <li><b>Dividend reinvested:</b> the shares credited, or just the cash amount and the reinvestment price, and the site works out the shares. Cash doesn't change.</li>
+          </ul>
+        </div>
       </div>
     </section>
 
@@ -202,11 +222,12 @@
     </div>
   </div>
 
-  <script src="js/api.js?v=6"></script>
-  <script src="js/indicators.js?v=6"></script>
-  <script src="js/framework.js?v=6"></script>
-  <script src="js/charts.js?v=6"></script>
-  <script src="js/app.js?v=6"></script>
-  <script src="js/mobile.js?v=6"></script>
+  <script src="js/api.js?v=8"></script>
+  <script src="js/indicators.js?v=8"></script>
+  <script src="js/framework.js?v=8"></script>
+  <script src="js/extras.js?v=8"></script>
+  <script src="js/charts.js?v=8"></script>
+  <script src="js/app.js?v=8"></script>
+  <script src="js/mobile.js?v=8"></script>
 </body>
 </html>
