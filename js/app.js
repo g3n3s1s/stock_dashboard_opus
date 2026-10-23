@@ -38,7 +38,37 @@
     status(msg, type) { const el = $('status'); el.textContent = msg || ''; el.className = 'status ' + (type || ''); }
   };
   const status = EPF.ui.status;
+  
+  /* ---------- Signal detail popup ---------- */
 
+  function openSignalDetail(name, code, text) {
+    const popup = $('signalDetail');
+
+    if (!popup) return;
+
+    $('signalDetailName').textContent = name || 'Signal';
+    $('signalDetailText').textContent = text || 'No additional information available.';
+    $('signalDetailDot').innerHTML = dotHtml(code || 'off', 'lg');
+
+    popup.classList.remove('hidden');
+
+    /*
+     * Prevent the mobile page behind the bottom sheet from moving while
+     * the user reads the explanation.
+     */
+    document.body.dataset.signalScrollY = String(window.scrollY);
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeSignalDetail() {
+    const popup = $('signalDetail');
+
+    if (!popup || popup.classList.contains('hidden')) return;
+
+    popup.classList.add('hidden');
+    document.body.style.overflow = '';
+  }
+  
   /* ---------- Profiles & watchlist ---------- */
   const loadProfile = sym => {
     const p = store.get('profile:' + sym, null);
@@ -207,7 +237,41 @@
     }).join('');
     cards.push({ name: 'S5 · Mr Market buys', code: now.s5s, tip: now.blocked ? 'Buying blocked while System 4 condition active' : `${eps.length} episode(s) with unused levels`, extra: epHtml || '<div class="sub muted" style="font-size:11px">no open reserve</div>' });
 
-    $('signalGrid').innerHTML = cards.map(c => `<div class="sys"><div class="head">${dotHtml(c.code, 'lg', c.tip)}<div class="name">${c.name}</div></div>${c.extra}</div>`).join('');
+    $('signalGrid').innerHTML = cards.map((c, i) =>
+      `<div class="sys">
+        <div class="head"
+             data-signal-index="${i}"
+             role="button"
+             tabindex="0"
+             aria-label="${esc(c.name)} signal details">
+          ${dotHtml(c.code, 'lg', c.tip)}
+          <div class="name">${c.name}</div>
+        </div>
+        ${c.extra}
+      </div>`
+    ).join('');
+
+    /*
+     * The HTML title tooltip remains useful on desktop.
+     * This handler supplies the missing tap interaction on phones/tablets,
+     * and also makes the cards keyboard-accessible on desktop.
+     */
+    $('signalGrid').querySelectorAll('[data-signal-index]').forEach(el => {
+      const show = () => {
+        const c = cards[+el.dataset.signalIndex];
+        if (c) openSignalDetail(c.name, c.code, c.tip);
+      };
+
+      el.addEventListener('click', show);
+
+      el.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          show();
+        }
+      });
+    });
+    
     renderLegend('legend');
     if (activeTab === 'dash') {
       EPF.charts.timeline($('timeline'), $('tlTip'), D, sim, COLORS, +$('tlRange').value);
