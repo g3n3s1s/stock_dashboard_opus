@@ -525,6 +525,28 @@
   };
 
   /* ---------- Wiring ---------- */
+  /* Signal detail popup controls */
+  if ($('signalDetailClose')) {
+    $('signalDetailClose').onclick = closeSignalDetail;
+  }
+
+  if ($('signalDetail')) {
+    $('signalDetail').addEventListener('click', e => {
+      /*
+       * Close only when the dark backdrop itself is tapped.
+       * Tapping inside the information sheet must not close it.
+       */
+      if (e.target === $('signalDetail')) {
+        closeSignalDetail();
+      }
+    });
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      closeSignalDetail();
+    }
+  });
   $('searchBtn').onclick = doSearch;
   $('searchInput').addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); if (e.key === 'Escape') $('searchResults').classList.add('hidden'); });
   document.addEventListener('click', e => { if (!e.target.closest('.search')) $('searchResults').classList.add('hidden'); });
