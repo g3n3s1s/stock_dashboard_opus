@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Equity Position Protection Framework — Rev. 5</title>
   <link rel="stylesheet" href="css/style.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -23,7 +23,7 @@
     </div>
     <div class="top-actions">
       <span id="apiDot" class="dot sm" title="API key status"></span>
-      <button id="refreshBtn" class="btn" title="Force re-download of price history">⟳ Refresh data</button>
+      <button id="refreshBtn" class="btn" title="Force re-download of price history">⟳<span class="lbl"> Refresh data</span></button>
       <button id="settingsBtn" class="btn" title="Settings">⚙</button>
     </div>
   </header>
@@ -37,12 +37,12 @@
 
   <main>
     <div class="tabs" id="tabs">
-      <button data-tab="dash" class="active">Dashboard</button>
-      <button data-tab="nw">Net Worth Comparison</button>
-      <button data-tab="profile">Stock Profile &amp; Fundamentals</button>
-      <button data-tab="mine">My Actions</button>
-      <button data-tab="log">Framework Trade Log</button>
-      <button data-tab="guide">Rules &amp; Legend</button>
+      <button data-tab="dash" class="active"><span class="tab-full">Dashboard</span><span class="tab-short">Signals</span></button>
+      <button data-tab="nw"><span class="tab-full">Net Worth Comparison</span><span class="tab-short">Net Worth</span></button>
+      <button data-tab="profile"><span class="tab-full">Stock Profile &amp; Fundamentals</span><span class="tab-short">Profile</span></button>
+      <button data-tab="mine"><span class="tab-full">My Actions</span><span class="tab-short">Mine</span></button>
+      <button data-tab="log"><span class="tab-full">Framework Trade Log</span><span class="tab-short">Log</span></button>
+      <button data-tab="guide"><span class="tab-full">Rules &amp; Legend</span><span class="tab-short">Legend</span></button>
     </div>
 
     <div id="empty" class="card empty">
@@ -100,7 +100,7 @@
       </div>
       <div class="card">
         <div class="card-head"><h3>Scorecard</h3></div>
-        <div id="scorecard"></div>
+        <div id="scorecard" class="scroll-x"></div>
         <p id="userNote" class="muted"></p>
       </div>
     </section>
