@@ -1,19 +1,21 @@
-/* Chart.js wrappers + canvas signal timeline */
+/* Chart.js wrappers + canvas signal timeline (desktop + mobile) */
 (function () {
   const EPF = (window.EPF = window.EPF || {});
   const charts = {};
   const GRID = '#1f2a40', TICK = '#8b97ad';
+  const isNarrow = () => window.innerWidth < 600;
 
   function destroy(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
 
   function baseOptions(yFmt) {
+    const narrow = isNarrow();
     return {
       responsive: true, maintainAspectRatio: false, animation: false, normalized: true,
       interaction: { mode: 'index', intersect: false },
-      plugins: { legend: { labels: { color: '#cbd5e1', boxWidth: 12 } } },
+      plugins: { legend: { labels: { color: '#cbd5e1', boxWidth: narrow ? 8 : 12, font: { size: narrow ? 10 : 12 } } } },
       scales: {
-        x: { ticks: { color: TICK, maxTicksLimit: 10, autoSkip: true, maxRotation: 0 }, grid: { color: GRID } },
-        y: { ticks: { color: TICK, callback: yFmt }, grid: { color: GRID } }
+        x: { ticks: { color: TICK, maxTicksLimit: narrow ? 4 : 10, autoSkip: true, maxRotation: 0, font: { size: narrow ? 10 : 12 } }, grid: { color: GRID } },
+        y: { ticks: { color: TICK, callback: yFmt, font: { size: narrow ? 10 : 12 } }, grid: { color: GRID } }
       },
       elements: { point: { radius: 0 }, line: { borderWidth: 1.6 } }
     };
@@ -31,8 +33,9 @@
         (info[k] = info[k] || []).push(`${t.side === 'sell' ? '▼' : '▲'} ${t.sys}: ${t.qty.toFixed(2)} sh @ ${t.price.toFixed(2)}`);
       });
       (user.applied || []).forEach(t => { const k = t.idx - s; mine[k] = t.price; (info[k] = info[k] || []).push(`◆ Mine: ${t.side} ${t.qty} @ ${t.price.toFixed(2)}`); });
+      const narrow = isNarrow();
       const mk = (label, data, color, extra) => Object.assign({ label, data, borderColor: color, backgroundColor: color, spanGaps: true }, extra || {});
-      const marker = (label, data, color, style, rot) => ({ label, data, type: 'line', showLine: false, borderColor: color, backgroundColor: color, pointStyle: style, pointRotation: rot || 0, pointRadius: 7, pointHoverRadius: 9 });
+      const marker = (label, data, color, style, rot) => ({ label, data, type: 'line', showLine: false, borderColor: color, backgroundColor: color, pointStyle: style, pointRotation: rot || 0, pointRadius: narrow ? 5 : 7, pointHoverRadius: narrow ? 7 : 9 });
       const opt = baseOptions(v => money(v));
       opt.plugins.tooltip = { callbacks: { afterBody: items => info[items[0].dataIndex] || [] } };
       charts.price = new Chart(canvas, {
@@ -64,31 +67,32 @@
 
     /* Heat-strip: one row per system, one cell per session */
     timeline(canvas, tip, D, sim, colors, range) {
-      const rows = [['S0 Concentration', 's0'], ['S1 Noise filter', 's1'], ['S2 Ordinary', 's2'], ['S2E Extreme', 'e2'], ['S3 Fundamentals', 's3'], ['S4 Full exit', 's4'], ['S5 Buy engine', 's5']];
+      const W = canvas.clientWidth || 900, narrow = W < 600;
+      const rows = narrow
+        ? [['S0', 's0'], ['S1', 's1'], ['S2', 's2'], ['S2E', 'e2'], ['S3', 's3'], ['S4', 's4'], ['S5', 's5']]
+        : [['S0 Concentration', 's0'], ['S1 Noise filter', 's1'], ['S2 Ordinary', 's2'], ['S2E Extreme', 'e2'], ['S3 Fundamentals', 's3'], ['S4 Full exit', 's4'], ['S5 Buy engine', 's5']];
       const total = sim.tlIdx.length, from = range > 0 ? Math.max(0, total - range) : 0;
       const idx = sim.tlIdx.slice(from);
       const dpr = window.devicePixelRatio || 1;
-      const W = canvas.clientWidth || 900, rowH = 24, padL = 120, padT = 6, tradeH = 18;
+      const rowH = narrow ? 20 : 24, padL = narrow ? 40 : 120, padT = 6, tradeH = 18;
       const H = padT + rows.length * rowH + tradeH + 22;
       canvas.width = W * dpr; canvas.height = H * dpr; canvas.style.height = H + 'px';
       const ctx = canvas.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, W, H);
-      const cw = (W - padL - 8) / Math.max(1, idx.length);
-      ctx.font = '12px Segoe UI, sans-serif'; ctx.textBaseline = 'middle';
+      const cw = (W - padL - 6) / Math.max(1, idx.length);
+      ctx.font = (narrow ? '11px' : '12px') + ' Segoe UI, sans-serif'; ctx.textBaseline = 'middle';
       rows.forEach(([name, key], r) => {
         const y = padT + r * rowH;
         ctx.fillStyle = '#cbd5e1'; ctx.fillText(name, 4, y + rowH / 2);
-        const arr = sim.tl[key].slice(from);
-        arr.forEach((code, k) => {
-          const col = colors[code] || colors.off;
-          const x = padL + k * cw;
-          if (code === 'off') { ctx.fillStyle = '#1a2337'; ctx.fillRect(x, y + 3, Math.max(1, cw), rowH - 6); }
-          else { ctx.fillStyle = col.c; ctx.fillRect(x, y + 3, Math.max(1, cw + 0.3), rowH - 6); }
+        sim.tl[key].slice(from).forEach((code, k) => {
+          const col = colors[code] || colors.off, x = padL + k * cw;
+          ctx.fillStyle = code === 'off' ? '#1a2337' : col.c;
+          ctx.fillRect(x, y + 3, Math.max(1, cw + 0.3), rowH - 6);
         });
       });
       // trade markers row
       const ty = padT + rows.length * rowH;
-      ctx.fillStyle = '#cbd5e1'; ctx.fillText('Trades', 4, ty + tradeH / 2);
+      ctx.fillStyle = '#cbd5e1'; ctx.fillText(narrow ? 'Trd' : 'Trades', 4, ty + tradeH / 2);
       const pos = new Map(idx.map((v, k) => [v, k]));
       sim.trades.forEach(t => {
         if (!pos.has(t.idx)) return;
@@ -101,29 +105,31 @@
       });
       // date axis
       ctx.fillStyle = TICK; ctx.font = '11px Segoe UI, sans-serif';
-      const ticks = 6;
+      const ticks = narrow ? 2 : 6;
       for (let t = 0; t <= ticks; t++) {
         const k = Math.min(idx.length - 1, Math.round((t / ticks) * (idx.length - 1)));
         if (k < 0) break;
-        const x = padL + k * cw; const label = D.date[idx[k]];
-        ctx.fillText(label, Math.min(W - 70, Math.max(padL, x - 30)), H - 9);
+        const x = padL + k * cw;
+        ctx.fillText(D.date[idx[k]], Math.min(W - 66, Math.max(padL, x - 30)), H - 9);
       }
-      // hover tooltip
-      canvas.onmousemove = e => {
+      // hover / touch tooltip
+      const show = clientX => {
         const rect = canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left, k = Math.floor((x - padL) / cw);
+        const x = clientX - rect.left, k = Math.floor((x - padL) / cw);
         if (k < 0 || k >= idx.length) { tip.classList.add('hidden'); return; }
         const gi = from + k, di = idx[k];
         const tr = sim.trades.filter(t => t.idx === di).map(t => `<div>${t.side === 'sell' ? '▼' : '▲'} ${t.sys} ${t.qty.toFixed(2)} sh @ ${t.price.toFixed(2)}</div>`).join('');
-        tip.innerHTML = `<b>${D.date[di]}</b> · close ${D.close[di].toFixed(2)}` + rows.map(([name, key]) => {
-          const code = sim.tl[key][gi], col = colors[code] || colors.off;
-          return `<div>${EPF.ui.dotHtml(code, 'xs')} ${name}</div>`;
-        }).join('') + tr;
+        tip.innerHTML = `<b>${D.date[di]}</b> · close ${D.close[di].toFixed(2)}` +
+          rows.map(([name, key]) => `<div>${EPF.ui.dotHtml(sim.tl[key][gi], 'xs')} ${name}</div>`).join('') + tr;
         tip.classList.remove('hidden');
-        const left = Math.min(x + 14, rect.width - 220);
-        tip.style.left = left + 'px'; tip.style.top = '4px';
+        const tw = tip.offsetWidth || 200;
+        tip.style.left = Math.max(0, Math.min(x + 12, rect.width - tw - 4)) + 'px';
+        tip.style.top = '4px';
       };
+      canvas.onmousemove = e => show(e.clientX);
       canvas.onmouseleave = () => tip.classList.add('hidden');
+      canvas.ontouchstart = canvas.ontouchmove = e => { if (e.touches[0]) show(e.touches[0].clientX); };
+      canvas.ontouchend = () => setTimeout(() => tip.classList.add('hidden'), 1800);
     }
   };
 })();
