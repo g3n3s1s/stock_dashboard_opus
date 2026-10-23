@@ -219,3 +219,149 @@ tr.best td { background: #10291c; }
   .fv-out { grid-template-columns: 1fr; }
   .tabs button { padding: 10px 9px; }
 }
+
+/* ============================================================
+   Tappable signal details
+   ============================================================ */
+
+.sys .head {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.sys .head:active {
+  opacity: 0.75;
+}
+
+.signal-detail {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding:
+    max(14px, env(safe-area-inset-top))
+    max(14px, env(safe-area-inset-right))
+    max(14px, env(safe-area-inset-bottom))
+    max(14px, env(safe-area-inset-left));
+
+  background: rgba(2, 6, 23, 0.72);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+
+.signal-detail-box {
+  width: min(440px, 100%);
+  max-height: 80vh;
+  overflow-y: auto;
+
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+
+  padding: 15px;
+
+  box-shadow:
+    0 20px 50px rgba(0, 0, 0, 0.50),
+    0 0 0 1px rgba(255, 255, 255, 0.02);
+
+  -webkit-overflow-scrolling: touch;
+}
+
+.signal-detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 12px;
+
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+
+  border-bottom: 1px solid var(--line);
+}
+
+.signal-detail-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  min-width: 0;
+}
+
+.signal-detail-title strong {
+  font-size: 16px;
+}
+
+.signal-detail-close {
+  flex: 0 0 auto;
+
+  width: 34px;
+  height: 34px;
+
+  padding: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.signal-detail-text {
+  line-height: 1.55;
+  color: var(--text);
+
+  overflow-wrap: anywhere;
+}
+
+.signal-detail-hint {
+  margin-top: 14px;
+  padding-top: 10px;
+
+  border-top: 1px dashed var(--line);
+
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+
+/* Phone: show popup as a bottom sheet */
+@media (max-width: 760px),
+       (max-height: 520px) and (pointer: coarse) {
+
+  .signal-detail {
+    align-items: flex-end;
+
+    padding:
+      0
+      max(0px, env(safe-area-inset-right))
+      0
+      max(0px, env(safe-area-inset-left));
+  }
+
+  .signal-detail-box {
+    width: 100%;
+    max-height: 68vh;
+
+    border-radius: 16px 16px 0 0;
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+
+    padding:
+      16px
+      14px
+      calc(16px + env(safe-area-inset-bottom));
+  }
+
+  /*
+   * Make the whole signal header comfortably tappable.
+   * The card itself does not need to become huge.
+   */
+  .sys .head {
+    min-height: 36px;
+  }
+}
