@@ -375,12 +375,12 @@
     ['benchmark', 'Benchmark ticker (e.g. SPY, QQQ, SOXX)', 'text'],
     ['peers', 'Peer basket, 3–5 tickers, comma separated', 'list'],
     ['startDate', 'Backtest start date (blank = ~1 year after first data)', 'date'],
-    ['initialCapital', 'Initial capital', 'number'],
+    ['initialCapital', 'Starting capital for this stock', 'number'],
     ['s0Shares', 'S0 shares override (0 = from capital)', 'number'],
     ['feePct', 'Fee per trade %', 'number'],
     ['cashYieldPct', 'Cash yield % p.a.', 'number'],
     ['sys0.enabled', 'Enable System 0 (concentration)', 'checkbox'],
-    ['sys0.otherAssets', 'Other investable net worth (for S0)', 'number'],
+    ['sys0.otherAssets', 'Other investable assets (excluding this stock)', 'number'],
     ['sys0.targetPct', 'Concentration target %', 'number']
   ];
   const PARAMS = [
