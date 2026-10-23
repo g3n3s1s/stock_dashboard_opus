@@ -62,6 +62,8 @@
       }
       selectStock(ch.dataset.s);
     });
+    const active = $('watchlist').querySelector('.chip.active');
+    if (active && active.scrollIntoView) active.scrollIntoView({ inline: 'center', block: 'nearest' });
   }
 
   function addStock(meta) {
@@ -79,6 +81,7 @@
   async function doSearch() {
     const q = $('searchInput').value.trim();
     if (!q) return;
+    $('searchInput').blur(); // closes the iPhone keyboard so results are visible
     const box = $('searchResults');
     try {
       status('Searching…');
@@ -134,6 +137,7 @@
   let activeTab = 'dash';
   $('tabs').querySelectorAll('button').forEach(b => b.onclick = () => {
     activeTab = b.dataset.tab;
+    if (b.scrollIntoView) b.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
     $('tabs').querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b));
     document.querySelectorAll('.tab').forEach(t => t.classList.toggle('hidden', t.id !== 'tab-' + activeTab || (!S.sim && activeTab !== 'guide')));
     if (activeTab === 'guide') $('empty').classList.add('hidden');
@@ -205,8 +209,10 @@
 
     $('signalGrid').innerHTML = cards.map(c => `<div class="sys"><div class="head">${dotHtml(c.code, 'lg', c.tip)}<div class="name">${c.name}</div></div>${c.extra}</div>`).join('');
     renderLegend('legend');
-    EPF.charts.timeline($('timeline'), $('tlTip'), D, sim, COLORS, +$('tlRange').value);
-    if (activeTab === 'dash') EPF.charts.price($('priceChart'), D, S.I, sim, S.user);
+    if (activeTab === 'dash') {
+      EPF.charts.timeline($('timeline'), $('tlTip'), D, sim, COLORS, +$('tlRange').value);
+      EPF.charts.price($('priceChart'), D, S.I, sim, S.user);
+    }
   }
 
   function renderLegend(id) {
@@ -331,8 +337,8 @@
   function renderFV() {
     const f = S.prof.fv, c = store.get('fvcalc:' + S.sym, { q: '', a: '', fcf: '', sh: '', date: S.D.date[S.D.date.length - 1] });
     $('fvForm').innerHTML = `
-      <label>Last 4 quarterly GAAP diluted EPS (comma)<input id="fvQ" value="${esc(c.q)}" placeholder="0.95, 1.10, 1.30, 1.50"/></label>
-      <label>Last 5 annual EPS (comma)<input id="fvA" value="${esc(c.a)}" placeholder="3.2, -0.5, 4.1, 2.0, 5.1"/></label>
+      <label>Last 4 quarterly GAAP diluted EPS (comma)<input id="fvQ" inputmode="decimal" value="${esc(c.q)}" placeholder="0.95, 1.10, 1.30, 1.50"/></label>
+      <label>Last 5 annual EPS (comma)<input id="fvA" inputmode="decimal" value="${esc(c.a)}" placeholder="3.2, -0.5, 4.1, 2.0, 5.1"/></label>
       <label>P/E multiple<select id="fvM">${[8, 10, 12, 15, 18].map(m => `<option ${m === f.multiple ? 'selected' : ''}>${m}</option>`).join('')}</select></label>
       <label>Confidence<select id="fvC">${['high', 'medium', 'low', 'speculative'].map(x => `<option ${x === f.confidence ? 'selected' : ''}>${x}</option>`).join('')}</select></label>
       <label>TTM haircut %<input id="fvH" type="number" value="${f.haircut}"/></label>
@@ -460,7 +466,18 @@
   document.addEventListener('click', e => { if (!e.target.closest('.search')) $('searchResults').classList.add('hidden'); });
   $('refreshBtn').onclick = () => S.sym && selectStock(S.sym, true);
   $('tlRange').onchange = () => S.sim && EPF.charts.timeline($('timeline'), $('tlTip'), S.D, S.sim, COLORS, +$('tlRange').value);
-  let rz; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => S.sim && activeTab === 'dash' && EPF.charts.timeline($('timeline'), $('tlTip'), S.D, S.sim, COLORS, +$('tlRange').value), 200); });
+
+  // Redraw on resize / phone rotation. Only react to width changes: iOS Safari fires
+  // resize when its address bar shows/hides, which would otherwise cause constant redraws.
+  let rz, lastW = window.innerWidth;
+  const onResize = () => {
+    if (window.innerWidth === lastW) return;
+    lastW = window.innerWidth;
+    clearTimeout(rz);
+    rz = setTimeout(() => S.sim && renderAll(), 250);
+  };
+  window.addEventListener('resize', onResize);
+  window.addEventListener('orientationchange', () => setTimeout(onResize, 300));
 
   refreshApiDot();
   renderGuide();
