@@ -32,7 +32,7 @@
         const k = t.idx - s; (t.side === 'sell' ? sells : buys)[k] = t.price;
         (info[k] = info[k] || []).push(`${t.side === 'sell' ? '▼' : '▲'} ${t.sys}: ${t.qty.toFixed(2)} sh @ ${t.price.toFixed(2)}`);
       });
-      (user.applied || []).forEach(t => { const k = t.idx - s; mine[k] = t.price; (info[k] = info[k] || []).push(`◆ Mine: ${t.side} ${t.qty} @ ${t.price.toFixed(2)}`); });
+      (user.applied || []).forEach(t => { const k = t.idx - s; mine[k] = t.price; (info[k] = info[k] || []).push(`◆ Mine: ${t.label || (t.side + ' ' + t.qty + ' @ ' + t.price.toFixed(2))}`); });
       const narrow = isNarrow();
       const mk = (label, data, color, extra) => Object.assign({ label, data, borderColor: color, backgroundColor: color, spanGaps: true }, extra || {});
       const marker = (label, data, color, style, rot) => ({ label, data, type: 'line', showLine: false, borderColor: color, backgroundColor: color, pointStyle: style, pointRotation: rot || 0, pointRadius: narrow ? 5 : 7, pointHoverRadius: narrow ? 7 : 9 });
