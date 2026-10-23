@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Equity Position Protection Framework — Rev. 5</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">◆</span>
+      <div>
+        <h1>Equity Position Protection Framework</h1>
+        <small>Rev. 5 · noise-resistant selling · valuation-led buying</small>
+      </div>
+    </div>
+    <div class="search">
+      <input id="searchInput" placeholder="Company name or ticker (e.g. Seagate, STX, Apple)" autocomplete="off" />
+      <button id="searchBtn" class="btn primary">Search</button>
+      <div id="searchResults" class="dropdown hidden"></div>
+    </div>
+    <div class="top-actions">
+      <span id="apiDot" class="dot sm" title="API key status"></span>
+      <button id="refreshBtn" class="btn" title="Force re-download of price history">⟳ Refresh data</button>
+      <button id="settingsBtn" class="btn" title="Settings">⚙</button>
+    </div>
+  </header>
+
+  <nav class="watchbar">
+    <span class="muted">Watchlist:</span>
+    <div id="watchlist" class="chips"></div>
+  </nav>
+
+  <div id="status" class="status"></div>
+
+  <main>
+    <div class="tabs" id="tabs">
+      <button data-tab="dash" class="active">Dashboard</button>
+      <button data-tab="nw">Net Worth Comparison</button>
+      <button data-tab="profile">Stock Profile &amp; Fundamentals</button>
+      <button data-tab="mine">My Actions</button>
+      <button data-tab="log">Framework Trade Log</button>
+      <button data-tab="guide">Rules &amp; Legend</button>
+    </div>
+
+    <div id="empty" class="card empty">
+      <h2>Start here</h2>
+      <ol>
+        <li>Click <b>⚙</b> and paste your free Twelve Data API key (stored only in this browser).</li>
+        <li>Type a company name or ticker above and press <b>Search</b>.</li>
+        <li>Pick a result — history downloads automatically and the framework runs.</li>
+      </ol>
+    </div>
+
+    <!-- DASHBOARD -->
+    <section id="tab-dash" class="tab">
+      <div class="grid4">
+        <div class="card kpi"><label>Last close</label><div id="kLast" class="big"></div><small id="kLastSub"></small></div>
+        <div class="card kpi"><label>Framework holding vs S0</label><div id="kHold" class="big"></div><div class="gauge" id="gHold"></div><small>Floors: 65% technical · 25% fundamental</small></div>
+        <div class="card kpi"><label>Next session action</label><div id="kAction" class="action"></div></div>
+        <div class="card kpi"><label>Net worth (framework vs buy &amp; hold)</label><div id="kNw" class="big"></div><small id="kNwSub"></small></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>Signal panel</h3><small class="muted">Hover any dot for details · colours are explained in the legend</small></div>
+        <div id="signalGrid" class="signal-grid"></div>
+        <div id="legend" class="legend"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h3>Signal timeline</h3>
+          <select id="tlRange">
+            <option value="120">Last 120 sessions</option>
+            <option value="250" selected>Last 250 sessions</option>
+            <option value="750">Last 750 sessions</option>
+            <option value="0">Whole backtest</option>
+          </select>
+        </div>
+        <div class="tl-wrap"><canvas id="timeline" height="230"></canvas><div id="tlTip" class="tip hidden"></div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>Price, trend and trades</h3><small class="muted">▼ framework sell · ▲ framework buy · ◆ your action</small></div>
+        <div class="chart-box"><canvas id="priceChart"></canvas></div>
+      </div>
+    </section>
+
+    <!-- NET WORTH -->
+    <section id="tab-nw" class="tab hidden">
+      <div class="card">
+        <div class="card-head"><h3>Net worth: Buy &amp; Hold vs Framework vs My Actions</h3><small class="muted">Same start date, S0, fees and cash yield</small></div>
+        <div class="chart-box"><canvas id="nwChart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>Drawdown</h3></div>
+        <div class="chart-box small"><canvas id="ddChart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>Scorecard</h3></div>
+        <div id="scorecard"></div>
+        <p id="userNote" class="muted"></p>
+      </div>
+    </section>
+
+    <!-- PROFILE -->
+    <section id="tab-profile" class="tab hidden">
+      <div class="card">
+        <div class="card-head"><h3>Per-stock profile</h3><button id="saveProfile" class="btn primary">Save &amp; re-run</button></div>
+        <div class="form-grid" id="profileForm"></div>
+        <details class="adv"><summary>Advanced framework parameters (sensitivity testing)</summary><div class="form-grid" id="paramForm"></div></details>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>Fair value engine (System 5 input)</h3><button id="autoEarn" class="btn" title="Requires a Twelve Data plan that includes /earnings">Try auto-build from reported EPS</button></div>
+        <div class="form-grid" id="fvForm"></div>
+        <div id="fvOut" class="fv-out"></div>
+        <h4>Fair value schedule <small class="muted">(point-in-time: an episode freezes the latest FV on or before its open date)</small></h4>
+        <div id="fvTable"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>System 3 — earnings &amp; guidance events</h3></div>
+        <div id="s3Table"></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>System 4 — thesis / distress events</h3></div>
+        <div id="s4Table"></div>
+      </div>
+    </section>
+
+    <!-- MY ACTIONS -->
+    <section id="tab-mine" class="tab hidden">
+      <div class="card">
+        <div class="card-head"><h3>My actual trades</h3><small class="muted">Starts with the same S0 shares on the start date. Price blank or 0 = that day's close.</small></div>
+        <div id="userTable"></div>
+      </div>
+    </section>
+
+    <!-- LOG -->
+    <section id="tab-log" class="tab hidden">
+      <div class="card">
+        <div class="card-head"><h3>Framework trades</h3></div>
+        <div id="tradeTable"></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>Sell episodes (System 5 reserves)</h3></div>
+        <div id="episodeTable"></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>Event log</h3></div>
+        <div id="eventLog"></div>
+      </div>
+    </section>
+
+    <!-- GUIDE -->
+    <section id="tab-guide" class="tab hidden">
+      <div class="card">
+        <h3>Colour legend</h3>
+        <div id="legend2" class="legend big"></div>
+      </div>
+      <div class="card guide" id="guideText"></div>
+    </section>
+  </main>
+
+  <!-- SETTINGS -->
+  <div id="settings" class="modal hidden">
+    <div class="modal-body">
+      <div class="card-head"><h3>Settings</h3><button class="btn" id="closeSettings">✕</button></div>
+      <label>Twelve Data API key <input id="apiKey" type="password" placeholder="paste key" /></label>
+      <label>API calls per minute (free plan = 8) <input id="ratePerMin" type="number" min="1" max="600" /></label>
+      <div class="row">
+        <button id="saveSettings" class="btn primary">Save</button>
+        <button id="clearCache" class="btn">Clear cached prices</button>
+      </div>
+      <p class="muted">The key is kept in your browser's localStorage only — it is never written into the GitHub repository.</p>
+      <h4>Backup / restore profiles</h4>
+      <textarea id="backupText" rows="6" placeholder="Click Export, copy the text. Paste text here and click Import to restore."></textarea>
+      <div class="row"><button id="exportBtn" class="btn">Export</button><button id="importBtn" class="btn">Import</button></div>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/indicators.js"></script>
+  <script src="js/framework.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
