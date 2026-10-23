@@ -189,7 +189,7 @@
   }
   const bar = (used, cap, color) => `<div class="minibar" title="Reserve used ${(used * 100).toFixed(1)}% of ${cap}% S0"><div style="width:${Math.min(100, (used * 100 / cap) * 100)}%;background:${color}"></div></div>`;
 
-    function renderDashboard() {
+  function renderDashboard() {
     const { D, sim, bh, prof, I } = S, now = sim.now, n = D.close.length, i = n - 1;
     const P = prof.p;
     const chg = D.close[n - 1] / D.close[n - 2] - 1;
@@ -207,12 +207,16 @@
     $('kNw').innerHTML = `${fmt(fw, 0)} <small>vs</small> ${fmt(b, 0)}`;
     $('kNwSub').innerHTML = `${dotHtml(fw >= b ? 'ok' : 'watch', 'sm', fw >= b ? 'Framework ahead of buy & hold' : 'Framework behind buy & hold')} difference ${fw >= b ? '+' : ''}${fmt(fw - b, 0)} (${pct(fw / b - 1)})`;
 
-    /* Registry of tappable sub-signals (small dots and M1/M2/M3 pills) */
+    /* Registry of tappable items (small dots, status lines, M1/M2/M3 pills) */
     const subs = [];
     const cl = code => 'Colour now: ' + (COLORS[code] || COLORS.off).l;
     const sub = (code, label, name, detail) => {
       subs.push({ code, name, detail: `${detail}\n\n${cl(code)}` });
       return `<span class="subsig" data-sub="${subs.length - 1}" role="button" tabindex="0" aria-label="${esc(name)} details">${dotHtml(code, 'xs', name + ' (tap for details)')}${label}</span>`;
+    };
+    const line = (code, text, name, detail) => {
+      subs.push({ code, name, detail: `${detail}\n\n${cl(code)}` });
+      return `<div class="subline subsig" data-sub="${subs.length - 1}" role="button" tabindex="0" aria-label="${esc(name)} details">${dotHtml(code, 'xs', name + ' (tap for details)')}<span>${esc(text)}</span></div>`;
     };
 
     const v = now.votes, a = now.armConds;
@@ -222,6 +226,13 @@
     const gap = (x, ma) => (x != null && ma ? x / ma - 1 : null);
     const s2tail = `\n\nSystem 2 needs confirmed relative lag (${P.confirmN} closes in a row) plus at least 2 of these 4 votes. Votes ON now: ${now.voteCount} of 4. Lag closes now: ${now.lagCount}.`;
     const e2tail = `\n\nAll four conditions must be true at the same time to arm the extreme-reversal overlay. Armed now: ${now.e2Armed ? 'yes' : 'no'}. Arming alone never sells; it only starts tracking the peak.`;
+
+    /* Reserve / recovery state (kept separate from the current evidence) */
+    const s2done = now.s2Used >= P.s2Cap / 100 - 1e-9, e2done = now.e2Used >= P.eCap / 100 - 1e-9;
+    const soldSh = now.episodes.reduce((t, e) => t + (e.sold || 0), 0);
+    const boughtSh = now.episodes.reduce((t, e) => t + (e.bought || 0), 0);
+    const evClear = now.voteCount === 0 && now.lagCount === 0;
+    const evCode = now.lagCount >= P.confirmN && now.voteCount >= 2 ? 'sell' : evClear ? 'ok' : 'weak';
 
     const cards = [];
     cards.push({ name: 'S0 · Concentration', code: now.s0s,
@@ -240,7 +251,8 @@
           `${now.lagCount} closes in a row of relative lag.\nWatch at ${P.watchN} closes, confirmed candidate at ${P.confirmN}.\n\nFilters brief noise: weakness must persist before System 2 is allowed to act.`) +
         `</div><div class="minibar" title="Persistence ${now.lagCount}/${P.confirmN}"><div style="width:${Math.min(100, now.lagCount / P.confirmN * 100)}%;background:${now.lagCount >= P.confirmN ? COLORS.sell.c : now.lagCount >= P.watchN ? COLORS.watch.c : COLORS.weak.c}"></div></div>` });
 
-    cards.push({ name: 'S2 · Ordinary protection', code: now.s2s, tip: `Reserve used ${pct(now.s2Used)} of ${P.s2Cap}% S0 · ${now.voteCount}/4 confirmations`,
+    cards.push({ name: 'S2 · Ordinary protection', code: now.s2s,
+      tip: `Evidence: ${now.voteCount}/4 votes, ${now.lagCount} lag closes.\nReserve: ${pct(now.s2Used)} of ${P.s2Cap}% S0 used${s2done ? ' (EXHAUSTED: S2 cannot sell again, and nothing refills it, including S5 buy-backs).' : '.'}\nAfter any sale, re-entry is by System 5 valuation only.`,
       extra: `<div class="sub">` +
         sub(vc(v[0]), 'Trend', 'Trend vote',
           `Close ${fmt(now.close)} · SMA50 ${fmt(I.sma50[i])} · SMA200 ${fmt(I.sma200[i])}\n\nVote is ON when the close is below SMA50 and either below SMA200 or SMA50 has fallen over the last 5 sessions.${s2tail}`) +
@@ -250,9 +262,19 @@
           `Value ${fmt(I.mag[i])} (vote ON at ${P.magK} or more)\n\nHow far price is below its 60-session high, measured in units of recent volatility. A big fall in a calm stock counts for more than the same fall in a wild one.${s2tail}`) +
         sub(vc(v[3]), 'β-resid', 'Beta-residual vote',
           `60-session return not explained by the benchmark: ${pct(I.resid60[i])}\nVote is ON at −${P.betaResidPct}% or worse.\n\nRemoves the part of the move that the market explains, leaving the company-specific part.${s2tail}`) +
-        `</div>${bar(now.s2Used, P.s2Cap, COLORS.exhausted.c)}` });
+        `</div>` +
+        line(evCode, evClear ? 'Evidence: cleared (0/4)' : `Evidence: ${now.voteCount}/4 · lag ${now.lagCount}d`, 'S2 evidence',
+          `Evidence is re-checked every trading day and can clear on its own.\n\nVotes ON now: ${now.voteCount} of 4. Relative-lag closes in a row: ${now.lagCount} (confirmed at ${P.confirmN}).\n\nS2 may sell only when lag is confirmed and at least 2 of 4 votes are ON, and only while it still has reserve left.`) +
+        line(s2done ? 'exhausted' : 'ok', s2done ? `Reserve: EXHAUSTED ${pct(now.s2Used)} / ${P.s2Cap}% S0` : `Reserve: ${pct(now.s2Used)} of ${P.s2Cap}% S0 used`, 'S2 reserve',
+          s2done
+            ? `S2 has sold its full ${P.s2Cap}% of S0 (initial ${P.s2Init}% + extension ${P.s2Ext}%).\n\nThis reserve does NOT refill when the evidence clears, when the price recovers, or when System 5 buys shares back. It resets only if you change the backtest start date, which starts a new simulation.\n\nOther systems can still sell: S2E (its own ${P.eCap}% reserve), S3 and S4, and S0 if enabled. S2 and S2E together can never take the holding below the ${P.techFloor}% technical floor.`
+            : `S2 has used ${pct(now.s2Used)} of its ${P.s2Cap}% of S0 reserve. Every S2 sale permanently uses reserve; it is never refilled.`) +
+        (soldSh > 0 ? line('armed', 'Re-entry: S5 valuation only', 'Re-entry rule',
+          `Technical recovery (price back above SMA50, MACD turning up, RSI rebound, new highs) never triggers a buy.\n\nOnly System 5 can buy back, when the price reaches M1/M2/M3: below both the frozen fair value and the average sell price of the episode.\n\nShares sold by the framework so far: ${fmt(soldSh, 2)} · bought back: ${fmt(boughtSh, 2)}.`) : '') +
+        bar(now.s2Used, P.s2Cap, COLORS.exhausted.c) });
 
-    cards.push({ name: 'S2E · Extreme reversal', code: now.e2s, tip: now.e2Armed ? `Armed · tracked peak ${fmt(now.e2Peak)} · ${pct(1 - now.close / now.e2Peak)} below` : 'Not armed',
+    cards.push({ name: 'S2E · Extreme reversal', code: now.e2s,
+      tip: (now.e2Armed ? `Armed · tracked peak ${fmt(now.e2Peak)} · ${pct(1 - now.close / now.e2Peak)} below.` : 'Not armed.') + `\nReserve: ${pct(now.e2Used)} of ${P.eCap}% S0 used${e2done ? ' (EXHAUSTED).' : '.'}`,
       extra: `<div class="sub">` +
         sub(ac(a[0]), `RSI≥${P.eRsi}`, 'RSI condition',
           `RSI(14) now ${fmt(I.rsi[i], 1)} · needs ${P.eRsi} or more.${e2tail}`) +
@@ -262,7 +284,10 @@
           `Price is ${pct(gap(now.close, I.sma20[i]))} versus SMA20 ${fmt(I.sma20[i])} · needs +${P.eAbove20}% or more.${e2tail}`) +
         sub(ac(a[3]), `20d≥${P.eRet20}%`, '20-session return condition',
           `20-session return ${pct(I.ret20[i])} · needs +${P.eRet20}% or more.${e2tail}`) +
-        `</div>${bar(now.e2Used, P.eCap, COLORS.exhausted.c)}` });
+        `</div>` +
+        line(e2done ? 'exhausted' : 'ok', e2done ? `Reserve: EXHAUSTED ${pct(now.e2Used)} / ${P.eCap}% S0` : `Reserve: ${pct(now.e2Used)} of ${P.eCap}% S0 used`, 'S2E reserve',
+          `S2E has its own reserve of ${P.eCap}% of S0, separate from S2's ${P.s2Cap}%. ${e2done ? 'It is used up and does not refill (S5 buy-backs do not reset it).' : 'Every S2E sale permanently uses reserve.'}\n\nS2 and S2E together can never take the holding below the ${P.techFloor}% technical floor.`) +
+        bar(now.e2Used, P.eCap, COLORS.exhausted.c) });
 
     const s3l = now.s3Last;
     cards.push({ name: 'S3 · Fundamentals', code: now.s3s, tip: s3l ? `Last report ${s3l.date}: ${s3l.result}, guidance ${s3l.guidance} → ${s3l.pct ? 'sell ' + s3l.pct + '% S0' : 'hold'}` : 'No earnings events entered', extra: '' });
@@ -286,7 +311,10 @@
       }).join(' ');
       return `<div style="margin-top:8px" title="Episode #${ep.id} opened ${ep.openDate}">#${ep.id} ${pills}</div>`;
     }).join('');
-    cards.push({ name: 'S5 · Mr Market buys', code: now.s5s, tip: now.blocked ? 'Buying blocked while System 4 condition active' : `${eps.length} episode(s) with unused levels`, extra: epHtml || '<div class="sub muted" style="font-size:11px">no open reserve</div>' });
+    const recovered = soldSh > 0 ? line(boughtSh >= soldSh - 1e-6 ? 'ok' : 'armed', `Recovered: ${fmt(boughtSh, 1)} / ${fmt(soldSh, 1)} sh`, 'S5 recovery',
+      `Shares sold by the framework in all episodes: ${fmt(soldSh, 2)}\nShares bought back by System 5: ${fmt(boughtSh, 2)}\n\nBuy-backs happen only at the M1/M2/M3 value levels. They do not refill the S2 or S2E reserves.`) : '';
+    cards.push({ name: 'S5 · Mr Market buys', code: now.s5s, tip: now.blocked ? 'Buying blocked while System 4 condition active' : `${eps.length} episode(s) with unused levels`,
+      extra: (epHtml || '<div class="sub muted" style="font-size:11px">no open reserve</div>') + recovered });
 
     $('signalGrid').innerHTML = cards.map((c, idx) =>
       `<div class="sys">
@@ -297,7 +325,7 @@
         ${c.extra}
       </div>`).join('');
 
-    /* Tap / click / keyboard handlers for system dots and sub-signals */
+    /* Tap / click / keyboard handlers */
     const bindTap = (el, fn) => {
       el.addEventListener('click', fn);
       el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn(); } });
@@ -318,7 +346,7 @@
       EPF.charts.price($('priceChart'), D, S.I, sim, S.user);
     }
   }
-
+  
   function renderLegend(id) {
     $(id).innerHTML = Object.entries(COLORS).map(([k, c]) => `<span>${dotHtml(k, 'sm')}${c.l}</span>`).join('') +
       `<span><b style="color:#ef4444">▼</b>/<b style="color:#2dd4bf">▲</b> trade executed</span>`;
@@ -327,23 +355,34 @@
   /* ---------- Net worth ---------- */
   function renderNetWorth() {
     const { D, sim, bh, user } = S;
-    if (activeTab === 'nw') EPF.charts.netWorth($('nwChart'), $('ddChart'), D, sim.start, [
+    const mineLabel = user.hasFlows ? 'My Actions (excl. RSU & dividends)' : 'My Actions';
+    const actualLabel = 'My Actions (actual, incl. RSU & dividends)';
+    const series = [
       { label: 'Buy & Hold', data: bh.nw, color: '#94a3b8' },
       { label: 'Framework', data: sim.nw, color: '#3b82f6', width: 2.2 },
-      { label: 'My Actions', data: user.nw, color: '#f472b6' }
-    ]);
-    const rows = [
-      ['Buy & Hold', EPF.metrics(D, bh.nw, sim.start, 0), '#94a3b8'],
-      ['Framework', EPF.metrics(D, sim.nw, sim.start, sim.trades.length), '#3b82f6'],
-      ['My Actions', EPF.metrics(D, user.nw, sim.start, user.applied.length), '#f472b6']
+      { label: mineLabel, data: user.adj, color: '#f472b6' }
     ];
-    const best = Math.max(...rows.map(r => r[1].final)), shallow = Math.max(...rows.map(r => r[1].mdd));
-    $('scorecard').innerHTML = `<table><tr><th></th><th class="num">Final net worth</th><th class="num">Total return</th><th class="num">CAGR</th><th class="num">Max drawdown</th><th class="num">Trades</th><th class="num">vs Buy & Hold</th></tr>` +
-      rows.map(([name, m, col]) => `<tr class="${m.final === best ? 'best' : ''}"><td><span class="dot sm" style="background:${col}"></span> ${name} ${m.final === best ? dotHtml('ok', 'sm', 'Highest ending wealth') : ''} ${m.mdd === shallow ? dotHtml('armed', 'sm', 'Shallowest drawdown') : ''}</td><td class="num">${fmt(m.final, 0)}</td><td class="num">${pct(m.ret)}</td><td class="num">${pct(m.cagr, 2)}</td><td class="num">${pct(m.mdd)}</td><td class="num">${m.trades}</td><td class="num">${fmt(m.final - rows[0][1].final, 0)}</td></tr>`).join('') +
-      `</table><p class="muted">Period ${D.date[sim.start]} → ${D.date[D.date.length - 1]} · S0 = ${fmt(sim.S0, 2)} shares · <span class="dot sm" style="background:${COLORS.ok.c}"></span> highest ending wealth · <span class="dot sm" style="background:${COLORS.armed.c}"></span> shallowest drawdown</p>`;
-    $('userNote').textContent = user.minCash < -1 ? `Note: your buys exceeded available cash (lowest cash ${fmt(user.minCash, 0)}). Negative cash is treated as extra capital injected.` : '';
-  }
+    if (user.hasFlows) series.push({ label: actualLabel, data: user.nw, color: '#fbbf24', width: 1.2 });
+    if (activeTab === 'nw') EPF.charts.netWorth($('nwChart'), $('ddChart'), D, sim.start, series);
 
+    const rows = [
+      ['Buy & Hold', EPF.metrics(D, bh.nw, sim.start, 0), '#94a3b8', true],
+      ['Framework', EPF.metrics(D, sim.nw, sim.start, sim.trades.length), '#3b82f6', true],
+      [mineLabel, EPF.metrics(D, user.adj, sim.start, user.tradeCount), '#f472b6', true]
+    ];
+    if (user.hasFlows) rows.push([actualLabel, EPF.metrics(D, user.nw, sim.start, user.tradeCount), '#fbbf24', false]);
+    const cmp = rows.filter(r => r[3]);
+    const best = Math.max(...cmp.map(r => r[1].final)), shallow = Math.max(...cmp.map(r => r[1].mdd));
+    const bhFinal = rows[0][1].final;
+    $('scorecard').innerHTML = `<table><tr><th></th><th class="num">Final net worth</th><th class="num">Total return</th><th class="num">CAGR</th><th class="num">Max drawdown</th><th class="num">Trades</th><th class="num">vs Buy & Hold</th></tr>` +
+      rows.map(([name, m, col, like]) => `<tr class="${like && m.final === best ? 'best' : ''}"><td><span class="dot sm" style="background:${col}"></span> ${name} ${like && m.final === best ? dotHtml('ok', 'sm', 'Highest ending wealth') : ''} ${like && m.mdd === shallow ? dotHtml('armed', 'sm', 'Shallowest drawdown') : ''}</td><td class="num">${fmt(m.final, 0)}</td><td class="num">${pct(m.ret)}</td><td class="num">${pct(m.cagr, 2)}</td><td class="num">${pct(m.mdd)}</td><td class="num">${m.trades}</td><td class="num">${fmt(m.final - bhFinal, 0)}</td></tr>`).join('') +
+      `</table><p class="muted">Period ${D.date[sim.start]} → ${D.date[D.date.length - 1]} · S0 = ${fmt(sim.S0, 2)} shares · <span class="dot sm" style="background:${COLORS.ok.c}"></span> highest ending wealth (like-for-like rows) · <span class="dot sm" style="background:${COLORS.armed.c}"></span> shallowest drawdown</p>`;
+    const notes = [];
+    if (user.minCash < -1) notes.push(`Your buys exceeded available cash (lowest cash ${fmt(user.minCash, 0)}). Negative cash is treated as extra capital injected.`);
+    if (user.hasFlows) notes.push(`RSU and dividend inflows (total ${fmt(user.flowTotal, 0)}) are removed from the "excl." line using time-weighted returns, so it compares fairly with Buy & Hold and Framework, which use price data only. The "actual" line is your real wealth including them.`);
+    $('userNote').textContent = notes.join(' ');
+  }
+  
   /* ---------- Generic editable table ---------- */
   function editableTable(el, rows, cols, onChange, extraBtn) {
     const cell = (c, r, i) => {
@@ -408,6 +447,7 @@
     }).join('');
     $('paramForm').innerHTML = PARAMS.map(([k, label]) => `<label>${label}<input type="number" step="any" data-p="p.${k}" value="${P.p[k]}"/></label>`).join('');
     renderFV();
+    restoreEpsBox();
     const fvCols = [{ key: 'date', label: 'Effective date', type: 'date' }, { key: 'fv', label: 'Adjusted FV', type: 'number' }, { key: 'note', label: 'Note / source' }, { key: 'reunderwrite', label: 'Re-underwrite open episodes', type: 'checkbox' }];
     editableTable($('fvTable'), P.fvSchedule, fvCols, commitAndRender);
     editableTable($('s3Table'), P.s3Events, [
@@ -491,17 +531,50 @@
     }
   };
 
+  /* ---------- EPS table import ---------- */
+  function restoreEpsBox() {
+    if (!$('epsText') || !S.sym) return;
+    $('epsText').value = store.get('epstable:' + S.sym, '');
+    $('epsLag').value = store.get('epslag:' + S.sym, 0);
+    $('epsMsg').textContent = '';
+  }
+  if ($('epsText')) {
+    $('epsText').addEventListener('input', () => S.sym && store.set('epstable:' + S.sym, $('epsText').value));
+    $('epsLag').addEventListener('input', () => S.sym && store.set('epslag:' + S.sym, +$('epsLag').value || 0));
+    $('epsBuild').onclick = () => {
+      const msg = $('epsMsg');
+      msg.className = 'eps-msg';
+      if (!S.prof || !S.D) { msg.textContent = 'Load a stock first.'; msg.classList.add('err'); return; }
+      const { rows, errors } = EPF.parseEpsTable($('epsText').value);
+      if (rows.length < 4) {
+        msg.textContent = `Need at least 4 quarters (found ${rows.length}).` + (errors.length ? ' ' + errors[0] : '');
+        msg.classList.add('err'); return;
+      }
+      const lag = Math.max(0, Math.round(+$('epsLag').value || 0));
+      const makeS3 = $('epsS3').checked && rows.some(r => r.estimate != null);
+      const { sched, s3 } = EPF.scheduleFromEps(rows, lag, S.prof, makeS3);
+      S.prof.fvSchedule = S.prof.fvSchedule.filter(x => !x.auto).concat(sched).sort((x, y) => (x.date < y.date ? -1 : 1));
+      if (makeS3) S.prof.s3Events = S.prof.s3Events.filter(x => !x.auto).concat(s3);
+      commitAndRender(true);   // re-runs the model and redraws the Profile tab
+      const m2 = $('epsMsg');
+      m2.className = 'eps-msg ok';
+      m2.textContent = `Imported ${rows.length} quarters → ${sched.length} fair values (${sched[0].date} to ${sched[sched.length - 1].date})` +
+        (makeS3 ? `, ${s3.length} System 3 events` : '') + (errors.length ? `. ${errors.length} line(s) skipped: ${errors[0]}` : '.');
+    };
+  }
+  
   /* ---------- My actions ---------- */
   function renderUserTable() {
     editableTable($('userTable'), S.prof.userTrades, [
       { key: 'date', label: 'Date', type: 'date' },
-      { key: 'side', label: 'Side', type: 'select', options: [['sell', 'Sell'], ['buy', 'Buy']] },
+      { key: 'side', label: 'Type', type: 'select', options: [['buy', 'Buy'], ['sell', 'Sell'], ['rsu', 'RSU / shares received'], ['divcash', 'Cash dividend'], ['divreinv', 'Dividend reinvested']] },
       { key: 'shares', label: 'Shares', type: 'number' },
       { key: 'price', label: 'Price (blank = close)', type: 'number' },
+      { key: 'amount', label: 'Cash amount', type: 'number' },
       { key: 'note', label: 'Note' }
     ], structural => { commit(); if (structural) renderUserTable(); });
   }
-
+  
   /* ---------- Log ---------- */
   function renderLog() {
     const { sim } = S;
