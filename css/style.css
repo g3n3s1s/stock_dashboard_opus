@@ -365,3 +365,32 @@ tr.best td { background: #10291c; }
     min-height: 36px;
   }
 }
+
+/* ============================================================
+   Tappable sub-signals (small dots + M1/M2/M3 pills)
+   ============================================================ */
+
+/* Popup text: keep the line breaks used in the explanations */
+.signal-detail-text { white-space: pre-line; }
+
+.subsig {
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 8px;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  transition: background .15s;
+}
+.subsig:hover,
+.subsig:focus-visible { background: rgba(147, 197, 253, .14); outline: none; }
+.subsig:active { background: rgba(147, 197, 253, .26); }
+
+.pill[data-sub] { cursor: pointer; -webkit-tap-highlight-color: transparent; user-select: none; }
+.pill[data-sub]:active { opacity: .7; }
+
+/* Phones: make each small target comfortably tappable */
+@media (max-width: 760px), (max-height: 520px) and (pointer: coarse) {
+  .sys .sub { gap: 2px; }
+  .sys .sub .subsig { min-width: 42px; min-height: 44px; padding: 6px 4px; justify-content: center; }
+  .pill[data-sub] { padding: 8px 11px; margin: 2px 1px; }
+}
