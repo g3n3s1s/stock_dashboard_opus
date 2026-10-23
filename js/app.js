@@ -189,8 +189,9 @@
   }
   const bar = (used, cap, color) => `<div class="minibar" title="Reserve used ${(used * 100).toFixed(1)}% of ${cap}% S0"><div style="width:${Math.min(100, (used * 100 / cap) * 100)}%;background:${color}"></div></div>`;
 
-  function renderDashboard() {
-    const { D, sim, bh, prof } = S, now = sim.now, n = D.close.length;
+    function renderDashboard() {
+    const { D, sim, bh, prof, I } = S, now = sim.now, n = D.close.length, i = n - 1;
+    const P = prof.p;
     const chg = D.close[n - 1] / D.close[n - 2] - 1;
     $('kLast').innerHTML = `${esc(S.sym)} ${fmt(now.close)}`;
     $('kLastSub').textContent = `${now.date} · ${chg >= 0 ? '+' : ''}${pct(chg, 2)} · β ${fmt(now.beta)} · vol ${pct(now.annVol, 0)}`;
@@ -206,24 +207,67 @@
     $('kNw').innerHTML = `${fmt(fw, 0)} <small>vs</small> ${fmt(b, 0)}`;
     $('kNwSub').innerHTML = `${dotHtml(fw >= b ? 'ok' : 'watch', 'sm', fw >= b ? 'Framework ahead of buy & hold' : 'Framework behind buy & hold')} difference ${fw >= b ? '+' : ''}${fmt(fw - b, 0)} (${pct(fw / b - 1)})`;
 
-    const sub = (code, label, tip) => `<span>${dotHtml(code, 'xs', tip)}${label}</span>`;
-    const v = now.votes, a = now.armConds, P = prof.p;
+    /* Registry of tappable sub-signals (small dots and M1/M2/M3 pills) */
+    const subs = [];
+    const cl = code => 'Colour now: ' + (COLORS[code] || COLORS.off).l;
+    const sub = (code, label, name, detail) => {
+      subs.push({ code, name, detail: `${detail}\n\n${cl(code)}` });
+      return `<span class="subsig" data-sub="${subs.length - 1}" role="button" tabindex="0" aria-label="${esc(name)} details">${dotHtml(code, 'xs', name + ' (tap for details)')}${label}</span>`;
+    };
+
+    const v = now.votes, a = now.armConds;
+    const vc = x => (x ? 'sell' : 'ok');
+    const ac = x => (x ? 'armed' : 'off');
+    const refTxt = now.refName === 'peers' ? 'your peer basket' : now.refName === 'benchmark' ? 'the benchmark' : 'nothing (add peers or a benchmark in Profile)';
+    const gap = (x, ma) => (x != null && ma ? x / ma - 1 : null);
+    const s2tail = `\n\nSystem 2 needs confirmed relative lag (${P.confirmN} closes in a row) plus at least 2 of these 4 votes. Votes ON now: ${now.voteCount} of 4. Lag closes now: ${now.lagCount}.`;
+    const e2tail = `\n\nAll four conditions must be true at the same time to arm the extreme-reversal overlay. Armed now: ${now.e2Armed ? 'yes' : 'no'}. Arming alone never sells; it only starts tracking the peak.`;
+
     const cards = [];
     cards.push({ name: 'S0 · Concentration', code: now.s0s,
       tip: prof.sys0.enabled ? `Exposure ${pct(now.exposure)} vs target ${prof.sys0.targetPct}%` : 'Disabled (enable in profile; needs other investable assets)',
       extra: prof.sys0.enabled ? `<div class="gauge">${gaugeHtml(now.exposure * 100, Math.max(prof.sys0.targetPct * 2, now.exposure * 100), now.exposure * 100 > prof.sys0.targetPct ? COLORS.watch.c : COLORS.ok.c, [prof.sys0.targetPct])}</div>` : '' });
+
     cards.push({ name: 'S1 · Noise filter', code: now.s1, tip: `Relative lag ${now.lagCount} closes · RS 60d ${pct(now.rs60)} vs ${now.refName}`,
-      extra: `<div class="sub">${sub(now.lenses.stock, 'Stock', 'Stock lens: trend / weekly MACD / drawdown')}${sub(now.lenses.peers, 'Peers', `Peer lens · breadth ${pct(now.breadth, 0)}`)}${sub(now.lenses.market, 'Market', `Benchmark drawdown ${pct(now.benchDD)}`)}${sub(now.lenses.persist, 'Persist', `${now.lagCount} closes of relative lag (5 = watch, 10 = confirmed)`)}</div>
-        <div class="minibar" title="Persistence ${now.lagCount}/${P.confirmN}"><div style="width:${Math.min(100, now.lagCount / P.confirmN * 100)}%;background:${now.lagCount >= P.confirmN ? COLORS.sell.c : now.lagCount >= P.watchN ? COLORS.watch.c : COLORS.weak.c}"></div></div>` });
-    const vc = x => (x ? 'sell' : 'ok');
+      extra: `<div class="sub">` +
+        sub(now.lenses.stock, 'Stock', 'Stock lens',
+          `Close ${fmt(now.close)} · SMA50 ${fmt(I.sma50[i])} · SMA200 ${fmt(I.sma200[i])}\nWeekly MACD ${fmt(I.wmacd[i], 3)} vs signal ${fmt(I.wsig[i], 3)}\nVolatility-adjusted drawdown ${fmt(I.mag[i])} (vote at ${P.magK})\n\nLooks at the stock on its own: price below its averages, weekly MACD below signal, or a large drawdown for its volatility. Weakness is only observed here; it never sells by itself.`) +
+        sub(now.lenses.peers, 'Peers', 'Peer lens',
+          `Relative strength (stock ÷ ${refTxt}) over 60 sessions: ${pct(now.rs60)}\nPeers above their SMA50: ${pct(now.breadth, 0)}\nLag closes in a row: ${now.lagCount}\n\nSeparates company weakness from a sector-wide move. Lag means relative strength fell ${P.lagPct}% or more over 60 sessions.`) +
+        sub(now.lenses.market, 'Market', 'Market lens',
+          `Benchmark close ${fmt(D.bench[i])} vs its SMA200 ${fmt(I.benchSma200[i])}\nBenchmark drawdown from its 252-session high: ${pct(now.benchDD)}\n\nSeparates company weakness from market-wide risk: benchmark below its 200-day average, or down 10% (weak market) or 20% (bear market) from its high.`) +
+        sub(now.lenses.persist, 'Persist', 'Persistence',
+          `${now.lagCount} closes in a row of relative lag.\nWatch at ${P.watchN} closes, confirmed candidate at ${P.confirmN}.\n\nFilters brief noise: weakness must persist before System 2 is allowed to act.`) +
+        `</div><div class="minibar" title="Persistence ${now.lagCount}/${P.confirmN}"><div style="width:${Math.min(100, now.lagCount / P.confirmN * 100)}%;background:${now.lagCount >= P.confirmN ? COLORS.sell.c : now.lagCount >= P.watchN ? COLORS.watch.c : COLORS.weak.c}"></div></div>` });
+
     cards.push({ name: 'S2 · Ordinary protection', code: now.s2s, tip: `Reserve used ${pct(now.s2Used)} of ${P.s2Cap}% S0 · ${now.voteCount}/4 confirmations`,
-      extra: `<div class="sub">${sub(vc(v[0]), 'Trend', 'Close < SMA50 and (< SMA200 or SMA50 falling)')}${sub(vc(v[1]), 'wMACD', 'Weekly MACD below signal')}${sub(vc(v[2]), 'Magn.', 'Volatility-adjusted drawdown ≥ threshold')}${sub(vc(v[3]), 'β-resid', '60-session beta-residual return ≤ −threshold')}</div>${bar(now.s2Used, P.s2Cap, COLORS.exhausted.c)}` });
-    const ac = x => (x ? 'armed' : 'off');
+      extra: `<div class="sub">` +
+        sub(vc(v[0]), 'Trend', 'Trend vote',
+          `Close ${fmt(now.close)} · SMA50 ${fmt(I.sma50[i])} · SMA200 ${fmt(I.sma200[i])}\n\nVote is ON when the close is below SMA50 and either below SMA200 or SMA50 has fallen over the last 5 sessions.${s2tail}`) +
+        sub(vc(v[1]), 'wMACD', 'Weekly MACD vote',
+          `Weekly MACD ${fmt(I.wmacd[i], 3)} vs signal line ${fmt(I.wsig[i], 3)}\n\nVote is ON when weekly MACD is below its signal line.${s2tail}`) +
+        sub(vc(v[2]), 'Magn.', 'Magnitude vote',
+          `Value ${fmt(I.mag[i])} (vote ON at ${P.magK} or more)\n\nHow far price is below its 60-session high, measured in units of recent volatility. A big fall in a calm stock counts for more than the same fall in a wild one.${s2tail}`) +
+        sub(vc(v[3]), 'β-resid', 'Beta-residual vote',
+          `60-session return not explained by the benchmark: ${pct(I.resid60[i])}\nVote is ON at −${P.betaResidPct}% or worse.\n\nRemoves the part of the move that the market explains, leaving the company-specific part.${s2tail}`) +
+        `</div>${bar(now.s2Used, P.s2Cap, COLORS.exhausted.c)}` });
+
     cards.push({ name: 'S2E · Extreme reversal', code: now.e2s, tip: now.e2Armed ? `Armed · tracked peak ${fmt(now.e2Peak)} · ${pct(1 - now.close / now.e2Peak)} below` : 'Not armed',
-      extra: `<div class="sub">${sub(ac(a[0]), 'RSI≥80', 'RSI(14) ≥ 80')}${sub(ac(a[1]), '>SMA50', 'Price ≥ 25% above SMA50')}${sub(ac(a[2]), '>SMA20', 'Price ≥ 15% above SMA20')}${sub(ac(a[3]), '20d≥40%', '20-session return ≥ 40%')}</div>${bar(now.e2Used, P.eCap, COLORS.exhausted.c)}` });
+      extra: `<div class="sub">` +
+        sub(ac(a[0]), `RSI≥${P.eRsi}`, 'RSI condition',
+          `RSI(14) now ${fmt(I.rsi[i], 1)} · needs ${P.eRsi} or more.${e2tail}`) +
+        sub(ac(a[1]), '>SMA50', 'Above SMA50 condition',
+          `Price is ${pct(gap(now.close, I.sma50[i]))} versus SMA50 ${fmt(I.sma50[i])} · needs +${P.eAbove50}% or more.${e2tail}`) +
+        sub(ac(a[2]), '>SMA20', 'Above SMA20 condition',
+          `Price is ${pct(gap(now.close, I.sma20[i]))} versus SMA20 ${fmt(I.sma20[i])} · needs +${P.eAbove20}% or more.${e2tail}`) +
+        sub(ac(a[3]), `20d≥${P.eRet20}%`, '20-session return condition',
+          `20-session return ${pct(I.ret20[i])} · needs +${P.eRet20}% or more.${e2tail}`) +
+        `</div>${bar(now.e2Used, P.eCap, COLORS.exhausted.c)}` });
+
     const s3l = now.s3Last;
     cards.push({ name: 'S3 · Fundamentals', code: now.s3s, tip: s3l ? `Last report ${s3l.date}: ${s3l.result}, guidance ${s3l.guidance} → ${s3l.pct ? 'sell ' + s3l.pct + '% S0' : 'hold'}` : 'No earnings events entered', extra: '' });
     cards.push({ name: 'S4 · Full exit', code: now.s4s, tip: now.s4Broken ? 'Thesis broken / distress' : now.s4Det ? `Peer-relative deterioration count ${now.s4Det}` : (now.s4Last ? 'Thesis intact' : 'No System 4 events entered'), extra: '' });
+
     const eps = now.episodes.filter(e => e.locks.some(l => !l)).slice(-3);
     const lv = [P.m1, P.m2, P.m3];
     const epHtml = eps.map(ep => {
@@ -231,47 +275,43 @@
         const thr = ep.fv ? Math.min(lv[k] / 100 * ep.fv, lv[k] / 100 * ep.wsp) : null;
         const code = !ep.fv ? 'off' : l ? 'exhausted' : now.close <= thr ? 'buy' : 'armed';
         const col = COLORS[code];
-        return `<span class="pill" style="background:${col.ring ? 'transparent' : col.c};${col.ring ? 'border:1px solid ' + col.ring + ';color:#94a3b8' : ''}" title="M${k + 1}: buy when ≤ ${thr ? fmt(thr) : 'n/a'} (${lv[k]}% of FV ${fmt(ep.fv)} and of avg sell ${fmt(ep.wsp)})">M${k + 1}</span>`;
+        const state = !ep.fv ? 'No fair value was on file when this episode opened, so no buy is possible.'
+          : l ? 'Already used. This level is permanently locked.'
+          : now.close <= thr ? 'Both conditions are met now: buy signal for the next session.'
+          : 'Waiting: the price is still above the buy threshold.';
+        const size = k < 2 ? '25% of the shares sold in this episode' : 'all remaining shares from this episode (about 50%)';
+        subs.push({ code, name: `M${k + 1} buy level · episode #${ep.id}`,
+          detail: `Opened ${ep.openDate}\nFrozen fair value ${fmt(ep.fv)} · average sell price ${fmt(ep.wsp)}\nBuy threshold ${thr ? fmt(thr) : 'n/a'} (${lv[k]}% of the lower of those two)\nLast close ${fmt(now.close)}\n\n${state}\n\nBuys ${size}. Each level can be used only once.\n\n${cl(code)}` });
+        return `<span class="pill" data-sub="${subs.length - 1}" role="button" tabindex="0" style="background:${col.ring ? 'transparent' : col.c};${col.ring ? 'border:1px solid ' + col.ring + ';color:#94a3b8' : ''}" title="M${k + 1}: buy when ≤ ${thr ? fmt(thr) : 'n/a'} (tap for details)">M${k + 1}</span>`;
       }).join(' ');
       return `<div style="margin-top:8px" title="Episode #${ep.id} opened ${ep.openDate}">#${ep.id} ${pills}</div>`;
     }).join('');
     cards.push({ name: 'S5 · Mr Market buys', code: now.s5s, tip: now.blocked ? 'Buying blocked while System 4 condition active' : `${eps.length} episode(s) with unused levels`, extra: epHtml || '<div class="sub muted" style="font-size:11px">no open reserve</div>' });
 
-    $('signalGrid').innerHTML = cards.map((c, i) =>
+    $('signalGrid').innerHTML = cards.map((c, idx) =>
       `<div class="sys">
-        <div class="head"
-             data-signal-index="${i}"
-             role="button"
-             tabindex="0"
-             aria-label="${esc(c.name)} signal details">
+        <div class="head" data-signal-index="${idx}" role="button" tabindex="0" aria-label="${esc(c.name)} signal details">
           ${dotHtml(c.code, 'lg', c.tip)}
           <div class="name">${c.name}</div>
         </div>
         ${c.extra}
-      </div>`
-    ).join('');
+      </div>`).join('');
 
-    /*
-     * The HTML title tooltip remains useful on desktop.
-     * This handler supplies the missing tap interaction on phones/tablets,
-     * and also makes the cards keyboard-accessible on desktop.
-     */
-    $('signalGrid').querySelectorAll('[data-signal-index]').forEach(el => {
-      const show = () => {
-        const c = cards[+el.dataset.signalIndex];
-        if (c) openSignalDetail(c.name, c.code, c.tip);
-      };
+    /* Tap / click / keyboard handlers for system dots and sub-signals */
+    const bindTap = (el, fn) => {
+      el.addEventListener('click', fn);
+      el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn(); } });
+    };
+    const grid = $('signalGrid');
+    grid.querySelectorAll('[data-signal-index]').forEach(el => bindTap(el, () => {
+      const c = cards[+el.dataset.signalIndex];
+      if (c) openSignalDetail(c.name, c.code, c.tip);
+    }));
+    grid.querySelectorAll('[data-sub]').forEach(el => bindTap(el, () => {
+      const s = subs[+el.dataset.sub];
+      if (s) openSignalDetail(s.name, s.code, s.detail);
+    }));
 
-      el.addEventListener('click', show);
-
-      el.addEventListener('keydown', e => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          show();
-        }
-      });
-    });
-    
     renderLegend('legend');
     if (activeTab === 'dash') {
       EPF.charts.timeline($('timeline'), $('tlTip'), D, sim, COLORS, +$('tlRange').value);
